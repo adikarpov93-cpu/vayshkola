@@ -12,3 +12,7 @@ media/hero-end.jpg
 media/founder.jpg
 *.md
 .DS_Store
+
+# полные исходники роликов, на сайт идут только *-loop.mp4
+media/reels/*.mp4
+!media/reels/*-loop.mp4

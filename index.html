@@ -407,11 +407,13 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:12px 36px;justify-content:space-bet
       void main(){
         float t=clamp(uProgress*1.4-aDelay*0.4,0.,1.); t=t*t*(3.-2.*t);
         vec3 p=mix(aStart,position,t);
+        float pulse=0.5+0.5*sin(uTime*2.4-length(aStart)*1.3+aDelay*0.6);
+        p+=normalize(aStart)*0.09*pulse*(1.-t);
         p+=0.025*vec3(sin(uTime*1.3+aDelay*23.),cos(uTime*1.1+aDelay*13.),sin(uTime*0.9+aDelay*7.));
         vec4 mv=modelViewMatrix*vec4(p*uScale,1.);
         gl_Position=projectionMatrix*mv;
         gl_PointSize=aSize*uPR*(2.6/-mv.z)*uScale;
-        vColor=aColor; vAlpha=mix(0.35,0.95,t); vRot=aRot+uTime*0.15;
+        vColor=aColor; vAlpha=mix(mix(0.18,0.85,pulse),0.95,t); vRot=aRot+uTime*0.15;
       }`,
     fragmentShader:`
       precision highp float;
@@ -426,7 +428,39 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:12px 36px;justify-content:space-bet
       }`
   });
   const pts=new THREE.Points(geo,mat);
-  const group=new THREE.Group(); group.add(pts); scene.add(group); window.__vay={mat,camera,group};
+  /* ---------- Нейро-ядро: пульсирующий огонь в центре будущего мозга, гаснет по мере сборки ---------- */
+  const fireMat=new THREE.ShaderMaterial({
+    transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+    uniforms:{uProgress:mat.uniforms.uProgress,uTime:mat.uniforms.uTime,uFade:mat.uniforms.uFade,uScale:mat.uniforms.uScale,uSize:{value:2.7}},
+    vertexShader:`
+      uniform float uScale,uSize; varying vec2 vUv;
+      void main(){ vUv=uv-0.5; vec4 mv=modelViewMatrix*vec4(0.,0.,0.,1.); mv.xy+=position.xy*uSize*uScale; gl_Position=projectionMatrix*mv; }`,
+    fragmentShader:`
+      precision highp float;
+      uniform float uProgress,uTime,uFade; varying vec2 vUv;
+      float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+      float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
+      float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*noise(p);p=p*2.03+vec2(1.7,9.2);a*=.5;}return v;}
+      void main(){
+        vec2 p=vUv*2.; float r=length(p); float ang=atan(p.y,p.x);
+        float beat=0.8+0.2*pow(0.5+0.5*sin(uTime*2.4),3.)+0.06*sin(uTime*7.3);
+        float warp=fbm(p*2.2+vec2(0.,-uTime*0.35));
+        float n=fbm(vec2(ang*2.5+warp*2.,r*2.8-uTime*1.3));
+        float tendril=smoothstep(0.5,0.82,n)*smoothstep(0.85,0.12,r)*(0.75+0.35*beat);
+        float core=exp(-r*r*14.0)*beat;
+        float halo=exp(-r*3.2)*0.35;
+        float v=core*1.3+tendril*1.1+halo;
+        vec3 cCore=vec3(0.86,0.97,1.0), cBlue=vec3(0.118,0.722,1.0), cDeep=vec3(0.043,0.373,0.847), cAmber=vec3(1.0,0.72,0.16);
+        vec3 col=mix(cDeep,cBlue,clamp(v*1.2,0.,1.)); col=mix(col,cCore,smoothstep(0.35,1.0,core));
+        float spark=smoothstep(0.8,0.96,fbm(p*6.5+vec2(0.,-uTime*2.4)))*smoothstep(0.95,0.15,r);
+        col+=cAmber*spark;
+        float a=clamp(v,0.,1.)*(1.-smoothstep(0.5,0.9,r));
+        float gone=1.-smoothstep(0.0,0.5,uProgress);
+        gl_FragColor=vec4(col,a*gone*uFade);
+      }`
+  });
+  const fire=new THREE.Mesh(new THREE.PlaneGeometry(1,1),fireMat);
+  const group=new THREE.Group(); group.add(fire); group.add(pts); scene.add(group); window.__vay={mat,camera,group,fireMat};
 
   const st={mx:0,my:0,rx:0,ry:0};
   function resize(){

@@ -1,0 +1,14 @@
+# черновики и архивы не публикуем
+_archive/
+v2/
+v3/
+.claude/
+media/ig/
+media/hero-v3-laptop.mp4
+media/hero-frame2.jpg
+media/hero-frame3a.jpg
+media/hero-mid.jpg
+media/hero-end.jpg
+media/founder.jpg
+*.md
+.DS_Store
